@@ -51,6 +51,8 @@ RTC_DS3231 rtc;
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 
 // "Global" variables
+File logFile;
+File touchesFile;
 int lastButtonState = LOW;   // the previous reading from the input pin
 int lastLedState = 0; // our LEDs (through MBI5026 driver)
 int ledState = 0; // our desired state for the LEDs
@@ -73,6 +75,32 @@ unsigned long millisLastNowUpdate = 0;
 
 
 /************************ Functions and methods ******************************/
+
+File openFile(const char* path) {
+  File myFile;
+  Serial.print("Looking for ");
+  Serial.print(path);
+  if (SD.exists(path)) {
+    Serial.print("... exists.");
+  } else {
+    log("... doesn't exist, creating it.");
+  }
+  myFile = SD.open(path, FILE_WRITE);
+  myFile.flush();
+  return myFile;
+}
+
+// TODO: Ditch string and use snprintf_P(s, sizeof(s), PSTR("%s is %i years old"), name, age);
+void log(String message) {
+  if (logFile) {
+    logFile.println(message);
+    logFile.flush(); // make sure the data is commited to the SD card
+  } else { // if the file isn't open, pop up an error:
+    log("ERROR: unable to write to log file on SD card.");
+  }
+  Serial.println(message);
+}
+
 void setup() {  pinMode(PIN_BUTTON, INPUT_PULLUP);
   pinMode(PIN_MBI_LAT, OUTPUT);
   pinMode(PIN_MBI_SCK, OUTPUT);
@@ -81,14 +109,36 @@ void setup() {  pinMode(PIN_BUTTON, INPUT_PULLUP);
   while (!Serial);  // wait for Serial Monitor to connect. Needed for native USB port boards only..
   // TODO: Serial.println("Pandora's Button v0.1");
 
+  Serial.print("Initializing SD card...");
+
+  if (!SD.begin(PIN_SD_CS)) {
+    Serial.println("initialization failed. Things to check:");
+    Serial.println("1. is a card inserted?");
+    Serial.println("2. is your wiring correct?");
+    Serial.println("Note: press reset or reopen this serial monitor after fixing your issue!");
+
+    abort();
+  } else {
+    Serial.println("SD card online.");
+  }
+  logFile = openFile("pandora.log");
+  touchesFile = openFile("touches.csv");
+
   if (! rtc.begin()) {
-    Serial.println("Couldn't find RTC");
+    log("Couldn't find RTC");
     Serial.flush();
     abort();
+  } else {
+    log("RTC initialized.");
   }
 
   if (rtc.lostPower()) {
-    Serial.println("RTC lost power, let's set the time!");
+    String message = "RTC lost power, settng the time based on sketch compile time: ";
+    message += F(__DATE__);
+    message += " ";
+    message += F(__TIME__);
+    message += ".";
+    log(message);
     // When time needs to be set on a new device, or after a power loss, the
     // following line sets the RTC to the date & time this sketch was compiled
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
@@ -107,6 +157,7 @@ void setup() {  pinMode(PIN_BUTTON, INPUT_PULLUP);
 
 void printTime() {
     DateTime now = rtc.now();
+    // TODO: Switch to message and log()
 
     Serial.print(now.year(), DEC);
     Serial.print("/");
@@ -121,16 +172,13 @@ void printTime() {
     Serial.print(now.minute(), DEC);
     Serial.print(":");
     Serial.print(now.second(), DEC);
-    Serial.println();
-
+    
     Serial.print(" since midnight 1/1/1970 = ");
     Serial.print(now.unixtime());
 
     Serial.print("Temperature: ");
     Serial.print(rtc.getTemperature());
     Serial.println(" C");
-
-    Serial.println();
 }
 
 
@@ -145,9 +193,13 @@ void loop() {
     Point p = ts.getPoint();
 
     if (p.z > __PRESSURE) {
-      Serial.print("Raw X = "); Serial.print(p.x);
-      Serial.print("\tRaw Y = "); Serial.print(p.y);
-      Serial.print("\tPressure = "); Serial.println(p.z);
+      String message = "Raw X = ";
+      message += p.x;
+      message += "\tRaw Y = ";
+      message += p.y;
+      message += "\tPressure = ";
+      message += p.z;
+      log(message);
     }
 
     // we have some minimum pressure we consider 'valid'
@@ -156,9 +208,13 @@ void loop() {
       p.x = map(p.x, TS_MINX, TS_MAXX, 0, 240);
       p.y = map(p.y, TS_MINY, TS_MAXY, 0, 320);
 
-      Serial.print("X = "); Serial.print(p.x);
-      Serial.print("\tY = "); Serial.print(p.y);
-      Serial.print("\tPressure = "); Serial.println(p.z);
+      String message = "X = ";
+      message += p.x;
+      message += "\tY = ";
+      message += p.y;
+      message += "\tPressure = ";
+      message += p.z;
+      log(message);
     }
   } // last touch scan
 
@@ -191,7 +247,7 @@ void loop() {
       // only log if the new button state is HIGH
       if (buttonState == HIGH) {
         bitSet(ledState, LED_BUTTON); // turn the button back on
-        Serial.println("A log needs to be made of this time");
+        log("A log needs to be made of this time");
         // TODO: Log this button press to the file
       } else { // buttonState == LOW
         bitClear(ledState, LED_BUTTON); // turn off the button
@@ -201,7 +257,7 @@ void loop() {
 
   // Manage the LED(s) driven through the MBI5026 driver
   if (lastLedState != ledState) {
-    Serial.println("Updating LED driver");
+    log("Updating LED driver");
     // shift out highbyte
     shiftOut(PIN_MBI_SDA, PIN_MBI_SCK, MSBFIRST, (ledState >> 8));
     // shift out lowbyte
