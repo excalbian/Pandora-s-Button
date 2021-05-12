@@ -50,9 +50,36 @@ TouchScreen ts = TouchScreen(XP, YP, XM, YM);
 RTC_DS3231 rtc;
 char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"};
 
-void setup() {
+// "Global" variables
+int lastButtonState = LOW;   // the previous reading from the input pin
+int lastLedState = 0; // our LEDs (through MBI5026 driver)
+int ledState = 0; // our desired state for the LEDs
+int buttonState = LOW;             // the current reading from the input pin
+DateTime now; // the time (to approximately the nearest second)
+
+// the following variables are unsigned longs because the time, measured in
+// milliseconds, will quickly become a bigger number than can be stored in an int.
+unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
+unsigned long millisLastTouchScan = 0;
+unsigned long millisLastTimePrint = 0;
+unsigned long millisLastNowUpdate = 0;
+
+
+// settings used to control program flow
+#define DEBOUNCE_DELAY      50      // the debounce time in milliseconds; increase if the output flickers
+#define PERIOD_TOUCH_SCAN   100     // milliseconds before we re-scan for touches
+#define PERIOD_TIME_PRINT   300000  // milliseconds before we re-print the time ( = 5 minutes)
+#define PERIOD_NOW_UPDATE   500     // milliseconds before we update the 'now' value
+
+
+/************************ Functions and methods ******************************/
+void setup() {  pinMode(PIN_BUTTON, INPUT_PULLUP);
+  pinMode(PIN_MBI_LAT, OUTPUT);
+  pinMode(PIN_MBI_SCK, OUTPUT);
+  pinMode(PIN_SD_CS, OUTPUT);
   Serial.begin(9600);
-  Serial.println("Pandora's Button v0.1");
+  while (!Serial);  // wait for Serial Monitor to connect. Needed for native USB port boards only..
+  // TODO: Serial.println("Pandora's Button v0.1");
 
   if (! rtc.begin()) {
     Serial.println("Couldn't find RTC");
@@ -76,13 +103,6 @@ void setup() {
   // This line sets the RTC with an explicit date & time, for example to set
   // January 21, 2014 at 3am you would call:
   // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
-
-  pinMode(PIN_BUTTON, INPUT_PULLUP);
-  pinMode(PIN_MBI_LAT, OUTPUT);
-  pinMode(PIN_MBI_SCK, OUTPUT);
-  pinMode(PIN_SD_CS, OUTPUT);
-  Serial.println("Pin modes setup");
-
 }
 
 void printTime() {
@@ -113,24 +133,11 @@ void printTime() {
     Serial.println();
 }
 
-int lastButtonState = LOW;   // the previous reading from the input pin
-int lastLedState = 0; // our LEDs (through MBI5026 driver)
-int ledState = 0; // our desired state for the LEDs
-int buttonState = LOW;             // the current reading from the input pin
 
 
 
-// the following variables are unsigned longs because the time, measured in
-// milliseconds, will quickly become a bigger number than can be stored in an int.
-unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
-unsigned long millisLastTouchScan = 0;
-unsigned long millisLastTimePrint = 0;
 
 
-// settings used to control program flow
-#define DEBOUNCE_DELAY      50    // the debounce time; increase if the output flickers
-#define PERIOD_TOUCH_SCAN   100 // how many milliseconds before we re-scan for touches
-#define PERIOD_TIME_PRINT   300000 // how many milliseconds before we re-print the time ( = 5 minutes)
 
 void loop() {
   if((unsigned long)(millis() - millisLastTouchScan) > PERIOD_TOUCH_SCAN) {
