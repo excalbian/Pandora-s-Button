@@ -1,0 +1,9 @@
+{
+    "board": "arduino:avr:uno",
+    "sketch": "Pandora_s_Button\\Pandora_s_Button.ino",
+    "output": "build",
+    "debugger": "jlink",
+    "xxprebuild": "./prebuild.sh",
+    "xxpostbuild": "./postbuild.sh",
+    "intelliSenseGen": "global"
+}

@@ -30,3 +30,9 @@
 *.exe
 *.out
 *.app
+
+# Build ouptut
+build/
+
+# This will change based on the development machine - recreated by Arduino Extension
+.vscode/c_cpp_properties.json
