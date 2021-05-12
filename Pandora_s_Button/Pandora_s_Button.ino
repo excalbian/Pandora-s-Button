@@ -156,7 +156,6 @@ void setup() {  pinMode(PIN_BUTTON, INPUT_PULLUP);
 }
 
 void printTime() {
-    DateTime now = rtc.now();
     // TODO: Switch to message and log()
 
     Serial.print(now.year(), DEC);
@@ -185,7 +184,10 @@ void printTime() {
 
 
 
-
+void updateNow() {
+  now = rtc.now();
+  log("Updated now to " + now.unixtime());
+}
 
 void loop() {
   if((unsigned long)(millis() - millisLastTouchScan) > PERIOD_TOUCH_SCAN) {
@@ -223,6 +225,11 @@ void loop() {
     printTime();
   }
 
+  if((unsigned long)(millis() - millisLastNowUpdate) > PERIOD_NOW_UPDATE) {
+    millisLastNowUpdate = millis();
+    updateNow();
+  }
+  
 
   // Check on our pushbutton -- it is only why we are here ;)
   int reading = digitalRead(PIN_BUTTON);
