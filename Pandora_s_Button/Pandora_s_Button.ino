@@ -1,10 +1,17 @@
-
 #include <SD.h>
 #include "TFTv2.h"
 #include <stdint.h>
 #include <SeeedTouchScreen.h>
 #include "RTClib.h" // Date and time functions using a DS3231 RTC connected via I2C and Wire lib
 
+// settings used to control program flow
+#define DEBOUNCE_DELAY      50      // the debounce time in milliseconds; increase if the output flickers
+#define PERIOD_TOUCH_SCAN   100     // milliseconds before we re-scan for touches
+#define PERIOD_TIME_PRINT   300000  // milliseconds before we re-print the time ( = 5 minutes)
+#define PERIOD_NOW_UPDATE   500     // milliseconds before we update the 'now' value
+
+
+#define VERSION       "0.2.0"
 #define PIN_BUTTON    3
 #define PIN_SD_CS     4
 #define PIN_TFT_CS    5
@@ -66,39 +73,34 @@ unsigned long millisLastTouchScan = 0;
 unsigned long millisLastTimePrint = 0;
 unsigned long millisLastNowUpdate = 0;
 
-
-// settings used to control program flow
-#define DEBOUNCE_DELAY      50      // the debounce time in milliseconds; increase if the output flickers
-#define PERIOD_TOUCH_SCAN   100     // milliseconds before we re-scan for touches
-#define PERIOD_TIME_PRINT   300000  // milliseconds before we re-print the time ( = 5 minutes)
-#define PERIOD_NOW_UPDATE   500     // milliseconds before we update the 'now' value
-
-
 /************************ Functions and methods ******************************/
 
 File openFile(const char* path) {
   File myFile;
-  Serial.print("Looking for ");
-  Serial.print(path);
+  char message[35];
+  snprintf_P(message, sizeof(message), PSTR("Looking for %s ..."), 
+    path
+  );
+  log(message);
+  
   if (SD.exists(path)) {
-    Serial.print("... exists.");
+    log(PSTR("... found it. Opening."));
   } else {
-    log("... doesn't exist, creating it.");
+    log(PSTR("... doesn't exist, creating it."));
   }
   myFile = SD.open(path, FILE_WRITE);
   myFile.flush();
   return myFile;
 }
 
-// TODO: Ditch string and use snprintf_P(s, sizeof(s), PSTR("%s is %i years old"), name, age);
-void log(String message) {
+void log(const char* message) {
+  Serial.println(message);
   if (logFile) {
     logFile.println(message);
     logFile.flush(); // make sure the data is commited to the SD card
   } else { // if the file isn't open, pop up an error:
-    log("ERROR: unable to write to log file on SD card.");
+    Serial.println(PSTR("ERROR: unable to write to log file on SD card."));
   }
-  Serial.println(message);
 }
 
 void setup() {  pinMode(PIN_BUTTON, INPUT_PULLUP);
@@ -112,11 +114,8 @@ void setup() {  pinMode(PIN_BUTTON, INPUT_PULLUP);
   Serial.print("Initializing SD card...");
 
   if (!SD.begin(PIN_SD_CS)) {
-    Serial.println("initialization failed. Things to check:");
-    Serial.println("1. is a card inserted?");
-    Serial.println("2. is your wiring correct?");
-    Serial.println("Note: press reset or reopen this serial monitor after fixing your issue!");
-
+    Serial.println(PSTR("initialization failed."));
+    Serial.println(PSTR("Note: press reset or reopen this serial monitor after fixing your issue!"));
     abort();
   } else {
     Serial.println("SD card online.");
@@ -133,12 +132,10 @@ void setup() {  pinMode(PIN_BUTTON, INPUT_PULLUP);
   }
 
   if (rtc.lostPower()) {
-    String message = "RTC lost power, settng the time based on sketch compile time: ";
-    message += F(__DATE__);
-    message += " ";
-    message += F(__TIME__);
-    message += ".";
-    log(message);
+    // char message[100];
+    // snprintf_P(message, sizeof(message), PSTR("RTC lost power, settng the time based on sketch compile time: %s %s."), PSTR(__DATE__), PSTR(__TIME__));
+    // log(message);
+    log(PSTR("RTC lost power, settng the time based on sketch compile time: " __DATE__ " " __TIME__ "."));
     // When time needs to be set on a new device, or after a power loss, the
     // following line sets the RTC to the date & time this sketch was compiled
     rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
@@ -155,35 +152,36 @@ void setup() {  pinMode(PIN_BUTTON, INPUT_PULLUP);
   // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
 }
 
+/**
+ * Logs a message with the current value of `now` (global variable)
+ */
 void printTime() {
-    // TODO: Switch to message and log()
-
-    Serial.print(now.year(), DEC);
-    Serial.print("/");
-    Serial.print(now.month(), DEC);
-    Serial.print("/");
-    Serial.print(now.day(), DEC);
-    Serial.print(" (");
-    Serial.print(daysOfTheWeek[now.dayOfTheWeek()]);
-    Serial.print(") ");
-    Serial.print(now.hour(), DEC);
-    Serial.print(":");
-    Serial.print(now.minute(), DEC);
-    Serial.print(":");
-    Serial.print(now.second(), DEC);
+    char message[37];
+    snprintf_P(message, sizeof(message), PSTR("%i/%i/%i (%s) %i:%i:%i"), 
+      now.year(),
+      now.month(),
+      now.day(),
+      daysOfTheWeek[now.dayOfTheWeek()],
+      now.hour(),
+      now.minute(),
+      now.second()
+    );
+    log(message);
+    snprintf_P(message, sizeof(message), PSTR("Since midnight 1/1/1970 that's %i"), 
+      now.unixtime()
+    );
+    log(message);
     
-    Serial.print(" since midnight 1/1/1970 = ");
-    Serial.print(now.unixtime());
-
-    Serial.print("Temperature: ");
-    Serial.print(rtc.getTemperature());
-    Serial.println(" C");
+    snprintf_P(message, sizeof(message), PSTR("Temperature: %i C"), 
+      rtc.getTemperature()
+    );
+    log(message);
 }
 
-
-
-
-
+/**
+ * Update the global `now` variable from the real time clock (RTC) module.
+ * Designed to be called more than once a second. See PERIOD_NOW_UDPATE.
+ */
 void updateNow() {
   now = rtc.now();
   log("Updated now to " + now.unixtime());
@@ -195,12 +193,12 @@ void loop() {
     Point p = ts.getPoint();
 
     if (p.z > __PRESSURE) {
-      String message = "Raw X = ";
-      message += p.x;
-      message += "\tRaw Y = ";
-      message += p.y;
-      message += "\tPressure = ";
-      message += p.z;
+      char message[45];
+      snprintf_P(message, sizeof(message), PSTR("Raw X = %i\tRaw Y = %i\tPressure = %i."), 
+        p.x,
+        p.y,
+        p.z
+      );
       log(message);
     }
 
@@ -210,12 +208,12 @@ void loop() {
       p.x = map(p.x, TS_MINX, TS_MAXX, 0, 240);
       p.y = map(p.y, TS_MINY, TS_MAXY, 0, 320);
 
-      String message = "X = ";
-      message += p.x;
-      message += "\tY = ";
-      message += p.y;
-      message += "\tPressure = ";
-      message += p.z;
+      char message[45];
+      snprintf_P(message, sizeof(message), PSTR("X = %i\tY = %i\tPressure = %i."), 
+        p.x,
+        p.y,
+        p.z
+      );
       log(message);
     }
   } // last touch scan
