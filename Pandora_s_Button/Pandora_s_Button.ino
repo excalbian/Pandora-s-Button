@@ -11,7 +11,7 @@
 #define PERIOD_NOW_UPDATE   500     // milliseconds before we update the 'now' value
 
 
-#define VERSION       "0.2.2"
+#define VERSION       "0.2.3"
 #define PIN_BUTTON    3
 #define PIN_SD_CS     4
 #define PIN_TFT_CS    5
@@ -130,6 +130,32 @@ void log(const char* message) {
   }
 }
 
+void tftTextSamples() {
+  Tft.drawString("original", 0, 14, 2, GREEN);
+
+  TextOrientation orientation;
+  Tft.drawString("portrait", 140, 300, 2, YELLOW, orientation);
+  orientation = PORTRAIT_BACKWARDS;
+  Tft.drawString("backwards", 128, 280, 2, YELLOW, orientation);
+  orientation = PORTRAIT_UPSIDE_DOWN_BACKWARDS;
+  Tft.drawString("downback", 128, 240, 2, YELLOW, orientation);
+  orientation = PORTRAIT_UPSIDE_DOWN;
+  Tft.drawString("upside down", 100, 200, 2, YELLOW, orientation);
+  orientation = PORTRAIT_VERTICAL;
+  Tft.drawString("vertical", 8, 220, 2, YELLOW, orientation);
+
+  orientation = LANDSCAPE;
+  Tft.drawString("landscape normal", 100, 18, 2, WHITE, orientation);
+  orientation = LANDSCAPE_UPSIDE_DOWN;
+  Tft.drawString("landscape updown", 100, 0, 2, WHITE, orientation);
+  orientation = LANDSCAPE_BACKWARDS;
+  Tft.drawString("landscape back", 120, 64, 2, WHITE, orientation);
+  orientation = LANDSCAPE_UPSIDE_DOWN_BACKWARDS;
+  Tft.drawString("landscape downback", 100, 70, 2, WHITE, orientation);
+  orientation = LANDSCAPE_VERTICAL;
+  Tft.drawString("landscape vertical", 0, 0, 2, WHITE, orientation);
+}
+
 void setup() {  pinMode(PIN_BUTTON, INPUT_PULLUP);
   pinMode(PIN_MBI_LAT, OUTPUT);
   pinMode(PIN_MBI_SCK, OUTPUT);
@@ -137,6 +163,14 @@ void setup() {  pinMode(PIN_BUTTON, INPUT_PULLUP);
   Serial.begin(9600);
   while (!Serial);  // wait for Serial Monitor to connect. Needed for native USB port boards only..
   FREE_MEM
+
+  // Initalize the TFT screen
+  // TFT_BL_ON;      // turn on the background light
+  Tft.TFTinit();  // init TFT library
+  Tft.fillScreen(0, 240, 0, 320, BLUE);
+
+  tftTextSamples();
+
   Serial.print("Initializing SD card...");
 
   if (!SD.begin(PIN_SD_CS)) {

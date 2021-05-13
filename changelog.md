@@ -1,4 +1,14 @@
 # Change log
+
+## v0.2.3
+ - Added TFT initialization
+ - Added text samples to test
+
+
+"C:\\Program Files (x86)\\Arduino\\hardware\\tools\\avr/bin/avr-size" -A "c:\\Users\\adam\\OneDrive\\Documents\\Pandora-s-Button\\build/Pandora_s_Button.ino.elf"
+Sketch uses 27482 bytes (85%) of program storage space. Maximum is 32256 bytes.
+Global variables use 1528 bytes (74%) of dynamic memory, leaving 520 bytes for local variables. Maximum is 2048 bytes.
+
 ## v0.2.2
  - Added log message when button is pressed
  - Added memory profiling (first pass)
