@@ -11,7 +11,7 @@
 #define PERIOD_NOW_UPDATE   500     // milliseconds before we update the 'now' value
 
 
-#define VERSION       "0.2.1"
+#define VERSION       "0.2.2"
 #define PIN_BUTTON    3
 #define PIN_SD_CS     4
 #define PIN_TFT_CS    5
@@ -75,6 +75,27 @@ unsigned long millisLastNowUpdate = 0;
 
 /************************ Functions and methods ******************************/
 
+#ifdef __arm__
+// should use uinstd.h to define sbrk but Due causes a conflict
+extern "C" char* sbrk(int incr);
+#else  // __ARM__
+extern char *__brkval;
+#endif  // __arm__
+
+int freeMemory() {
+  char top;
+#ifdef __arm__
+  return &top - reinterpret_cast<char*>(sbrk(0));
+#elif defined(CORE_TEENSY) || (ARDUINO > 103 && ARDUINO != 151)
+  return &top - __brkval;
+#else  // __arm__
+  return __brkval ? &top - __brkval : &top - __malloc_heap_start;
+#endif  // __arm__
+}
+
+#define FREE_MEM Serial.println(F("Free RAM = ")); Serial.println(freeMemory(), DEC);  // print how much RAM is available.
+
+
 File openFile(const char* path) {
   File myFile;
   char message[35];
@@ -115,8 +136,7 @@ void setup() {  pinMode(PIN_BUTTON, INPUT_PULLUP);
   pinMode(PIN_SD_CS, OUTPUT);
   Serial.begin(9600);
   while (!Serial);  // wait for Serial Monitor to connect. Needed for native USB port boards only..
-  // TODO: Serial.println("Pandora's Button v0.1");
-
+  FREE_MEM
   Serial.print("Initializing SD card...");
 
   if (!SD.begin(PIN_SD_CS)) {
@@ -157,6 +177,7 @@ void setup() {  pinMode(PIN_BUTTON, INPUT_PULLUP);
   // This line sets the RTC with an explicit date & time, for example to set
   // January 21, 2014 at 3am you would call:
   // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+  FREE_MEM
 }
 
 /**
@@ -183,6 +204,7 @@ void printTime() {
       rtc.getTemperature()
     );
     log(message);
+    FREE_MEM
 }
 
 /**
@@ -232,6 +254,7 @@ void loop() {
   if((unsigned long)(millis() - millisLastTimePrint) > PERIOD_TIME_PRINT) {
     millisLastTimePrint = millis();
     printTime();
+    FREE_MEM
   }
 
   if((unsigned long)(millis() - millisLastNowUpdate) > PERIOD_NOW_UPDATE) {
@@ -259,14 +282,13 @@ void loop() {
     // if the button state has changed:
     if (reading != buttonState) {
       buttonState = reading;
-
-      // only log if the new button state is HIGH
       if (buttonState == HIGH) {
         bitSet(ledState, LED_BUTTON); // turn the button back on
-        log("A log needs to be made of this time");
-        // TODO: Log this button press to the file
       } else { // buttonState == LOW
-        bitClear(ledState, LED_BUTTON); // turn off the button
+        char message[25];
+        snprintf_P(message, sizeof(message), PSTR("PRESSED at %u"), now.unixtime());
+        log(message);
+        bitClear(ledState, LED_BUTTON); // turn off the button led
       }
     }
   }
