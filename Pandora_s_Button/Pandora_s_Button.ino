@@ -11,7 +11,7 @@
 #define PERIOD_NOW_UPDATE   500     // milliseconds before we update the 'now' value
 
 
-#define VERSION       "0.2.0"
+#define VERSION       "0.2.1"
 #define PIN_BUTTON    3
 #define PIN_SD_CS     4
 #define PIN_TFT_CS    5
@@ -94,8 +94,14 @@ File openFile(const char* path) {
 }
 
 void log(const char* message) {
+  Serial.print('[');
+  Serial.print(millis(), DEC);
+  Serial.print("] ");
   Serial.println(message);
   if (logFile) {
+    logFile.print('[');
+    logFile.print(millis(), DEC);
+    logFile.print("] ");
     logFile.println(message);
     logFile.flush(); // make sure the data is commited to the SD card
   } else { // if the file isn't open, pop up an error:
@@ -121,6 +127,7 @@ void setup() {  pinMode(PIN_BUTTON, INPUT_PULLUP);
     Serial.println("SD card online.");
   }
   logFile = openFile("pandora.log");
+  log(PSTR("Pandora's Button v" VERSION));
   touchesFile = openFile("touches.csv");
 
   if (! rtc.begin()) {
@@ -167,7 +174,7 @@ void printTime() {
       now.second()
     );
     log(message);
-    snprintf_P(message, sizeof(message), PSTR("Since midnight 1/1/1970 that's %i"), 
+    snprintf_P(message, sizeof(message), PSTR("Since midnight 1/1/1970 that's %l"), 
       now.unixtime()
     );
     log(message);
@@ -184,7 +191,11 @@ void printTime() {
  */
 void updateNow() {
   now = rtc.now();
-  log("Updated now to " + now.unixtime());
+  char message[30];
+  snprintf_P(message, sizeof(message), PSTR("Updated now to %u"), 
+    now.unixtime()
+  );
+  log(message);
 }
 
 void loop() {

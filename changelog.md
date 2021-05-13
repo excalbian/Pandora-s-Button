@@ -1,4 +1,11 @@
 # Change log
+## v0.2.1
+ - Added version log message to setup
+ - Added timestamp (millis) to log messages
+
+"C:\\Program Files (x86)\\Arduino\\hardware\\tools\\avr/bin/avr-size" -A "c:\\Users\\adam\\OneDrive\\Documents\\Pandora-s-Button\\build/Pandora_s_Button.ino.elf"
+Sketch uses 20850 bytes (64%) of program storage space. Maximum is 32256 bytes.
+Global variables use 1391 bytes (67%) of dynamic memory, leaving 657 bytes for local variables. Maximum is 2048 bytes.
 
 ## v0.2.0
  - Moving to sprintf (c-style) strings
