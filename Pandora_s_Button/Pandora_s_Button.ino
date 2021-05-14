@@ -9,9 +9,10 @@
 #define PERIOD_TOUCH_SCAN   100     // milliseconds before we re-scan for touches
 #define PERIOD_TIME_PRINT   300000  // milliseconds before we re-print the time ( = 5 minutes)
 #define PERIOD_NOW_UPDATE   500     // milliseconds before we update the 'now' value
+// Use this to log each update to now: #define VERBOSE_NOW_UPDATES 1
 
 
-#define VERSION       "0.2.3"
+#define VERSION       "0.2.4"
 #define PIN_BUTTON    3
 #define PIN_SD_CS     4
 #define PIN_TFT_CS    5
@@ -249,10 +250,12 @@ void printTime() {
 void updateNow() {
   now = rtc.now();
   char message[30];
+  #ifdef VERBOSE_NOW_UPDATES
   snprintf_P(message, sizeof(message), PSTR("Updated now to %u"), 
     now.unixtime()
   );
   log(message);
+  #endif
 }
 
 void loop() {
