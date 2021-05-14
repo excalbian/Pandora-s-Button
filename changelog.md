@@ -1,5 +1,14 @@
 # Change log
 
+## v0.2.4
+ - Moved to using a global buffer for Progmem (flash) strings
+ - Fixed PSTR messages that weren't being logged correctly
+ - Removed aborts when RTC or SD don't initialize
+ - Only set the RTC if it initialized
+ - Added header of program to TFT
+ - Added log messages on TFT
+ - Removed TFT samples
+
 ## v0.2.3
  - Added TFT initialization
  - Added text samples to test

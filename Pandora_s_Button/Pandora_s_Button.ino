@@ -10,6 +10,9 @@
 #define PERIOD_TIME_PRINT   300000  // milliseconds before we re-print the time ( = 5 minutes)
 #define PERIOD_NOW_UPDATE   500     // milliseconds before we update the 'now' value
 // Use this to log each update to now: #define VERBOSE_NOW_UPDATES 1
+#define LOG_TEXT_SIZE     1
+#define LOG_TEXT_FG       RED
+#define LOG_TEXT_BG       BLACK
 
 
 #define VERSION       "0.2.4"
@@ -66,6 +69,7 @@ int lastLedState = 0; // our LEDs (through MBI5026 driver)
 int ledState = 0; // our desired state for the LEDs
 int buttonState = LOW;             // the current reading from the input pin
 DateTime now; // the time (to approximately the nearest second)
+char buffer[30];
 
 // the following variables are unsigned longs because the time, measured in
 // milliseconds, will quickly become a bigger number than can be stored in an int.
@@ -94,21 +98,21 @@ int freeMemory() {
 #endif  // __arm__
 }
 
+#define LOG_BUFFER(MSG) snprintf_P(buffer, sizeof(buffer), PSTR(MSG)); log(buffer);
 #define FREE_MEM Serial.println(F("Free RAM = ")); Serial.println(freeMemory(), DEC);  // print how much RAM is available.
 
 
 File openFile(const char* path) {
   File myFile;
-  char message[35];
-  snprintf_P(message, sizeof(message), PSTR("Looking for %s ..."), 
+  snprintf_P(buffer, sizeof(buffer), PSTR("Looking for %s ..."), 
     path
   );
-  log(message);
+  log(buffer);
   
   if (SD.exists(path)) {
-    log(PSTR("... found it. Opening."));
+    LOG_BUFFER("... found it. Opening.");
   } else {
-    log(PSTR("... doesn't exist, creating it."));
+    LOG_BUFFER("... doesn't exist, creating it.");
   }
   myFile = SD.open(path, FILE_WRITE);
   myFile.flush();
@@ -129,35 +133,18 @@ void log(const char* message) {
   } else { // if the file isn't open, pop up an error:
     Serial.println(PSTR("ERROR: unable to write to log file on SD card."));
   }
+
+  #define TEXT_ORIENTATION  LANDSCAPE
+  #define LOG_TEXT_X        0
+  #define LOG_TEXT_Y        0
+  #define LOG_TEXT_WIDTH    15
+  #define LOG_TEXT_HEIGHT   320
+  Tft.fillRectangle(LOG_TEXT_Y, LOG_TEXT_X, LOG_TEXT_WIDTH, LOG_TEXT_HEIGHT, LOG_TEXT_BG);
+  Tft.drawString(message, LOG_TEXT_X, LOG_TEXT_Y, LOG_TEXT_SIZE, RED, TEXT_ORIENTATION);
 }
 
-void tftTextSamples() {
-  Tft.drawString("original", 0, 14, 2, GREEN);
-
-  TextOrientation orientation;
-  Tft.drawString("portrait", 140, 300, 2, YELLOW, orientation);
-  orientation = PORTRAIT_BACKWARDS;
-  Tft.drawString("backwards", 128, 280, 2, YELLOW, orientation);
-  orientation = PORTRAIT_UPSIDE_DOWN_BACKWARDS;
-  Tft.drawString("downback", 128, 240, 2, YELLOW, orientation);
-  orientation = PORTRAIT_UPSIDE_DOWN;
-  Tft.drawString("upside down", 100, 200, 2, YELLOW, orientation);
-  orientation = PORTRAIT_VERTICAL;
-  Tft.drawString("vertical", 8, 220, 2, YELLOW, orientation);
-
-  orientation = LANDSCAPE;
-  Tft.drawString("landscape normal", 100, 18, 2, WHITE, orientation);
-  orientation = LANDSCAPE_UPSIDE_DOWN;
-  Tft.drawString("landscape updown", 100, 0, 2, WHITE, orientation);
-  orientation = LANDSCAPE_BACKWARDS;
-  Tft.drawString("landscape back", 120, 64, 2, WHITE, orientation);
-  orientation = LANDSCAPE_UPSIDE_DOWN_BACKWARDS;
-  Tft.drawString("landscape downback", 100, 70, 2, WHITE, orientation);
-  orientation = LANDSCAPE_VERTICAL;
-  Tft.drawString("landscape vertical", 0, 0, 2, WHITE, orientation);
-}
-
-void setup() {  pinMode(PIN_BUTTON, INPUT_PULLUP);
+void setup() {  
+  pinMode(PIN_BUTTON, INPUT_PULLUP);
   pinMode(PIN_MBI_LAT, OUTPUT);
   pinMode(PIN_MBI_SCK, OUTPUT);
   pinMode(PIN_SD_CS, OUTPUT);
@@ -170,49 +157,44 @@ void setup() {  pinMode(PIN_BUTTON, INPUT_PULLUP);
   Tft.TFTinit();  // init TFT library
   Tft.fillScreen(0, 240, 0, 320, BLUE);
 
-  tftTextSamples();
-
   Serial.print("Initializing SD card...");
 
   if (!SD.begin(PIN_SD_CS)) {
     Serial.println(PSTR("initialization failed."));
-    Serial.println(PSTR("Note: press reset or reopen this serial monitor after fixing your issue!"));
-    Serial.flush(); // make sure it's all transmitted before we abort
-    abort();
   } else {
     Serial.println("SD card online.");
   }
   logFile = openFile("pandora.log");
-  log(PSTR("Pandora's Button v" VERSION));
+
+  LOG_BUFFER("Pandora's Button v" VERSION)
+  Tft.drawString(buffer, 0, 220, 2, YELLOW, LANDSCAPE);
+  LOG_BUFFER(__DATE__ " " __TIME__);
+
   touchesFile = openFile("touches.csv");
 
   if (! rtc.begin()) {
     log("Couldn't find RTC");
-    Serial.flush();
-    abort();
   } else {
     log("RTC initialized.");
-  }
-
-  if (rtc.lostPower()) {
-    // char message[100];
-    // snprintf_P(message, sizeof(message), PSTR("RTC lost power, settng the time based on sketch compile time: %s %s."), PSTR(__DATE__), PSTR(__TIME__));
-    // log(message);
-    log(PSTR("RTC lost power, settng the time based on sketch compile time: " __DATE__ " " __TIME__ "."));
-    // When time needs to be set on a new device, or after a power loss, the
+    if (rtc.lostPower()) {
+      LOG_BUFFER("RTC lost power, settng the time to compile time: %s %s.");
+      LOG_BUFFER(__DATE__ " " __TIME__);
+      // When time needs to be set on a new device, or after a power loss, the
+      // following line sets the RTC to the date & time this sketch was compiled
+      rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+      // This line sets the RTC with an explicit date & time, for example to set
+      // January 21, 2014 at 3am you would call:
+      // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+    }
+    // When time needs to be re-set on a previously configured device, the
     // following line sets the RTC to the date & time this sketch was compiled
-    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    // rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
     // This line sets the RTC with an explicit date & time, for example to set
     // January 21, 2014 at 3am you would call:
     // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
   }
 
-  // When time needs to be re-set on a previously configured device, the
-  // following line sets the RTC to the date & time this sketch was compiled
-  // rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
-  // This line sets the RTC with an explicit date & time, for example to set
-  // January 21, 2014 at 3am you would call:
-  // rtc.adjust(DateTime(2014, 1, 21, 3, 0, 0));
+
   FREE_MEM
 }
 
@@ -220,8 +202,7 @@ void setup() {  pinMode(PIN_BUTTON, INPUT_PULLUP);
  * Logs a message with the current value of `now` (global variable)
  */
 void printTime() {
-    char message[37];
-    snprintf_P(message, sizeof(message), PSTR("%i/%i/%i (%s) %i:%i:%i"), 
+    snprintf_P(buffer, sizeof(buffer), PSTR("%i/%i/%i (%s) %i:%i:%i"), 
       now.year(),
       now.month(),
       now.day(),
@@ -230,16 +211,16 @@ void printTime() {
       now.minute(),
       now.second()
     );
-    log(message);
-    snprintf_P(message, sizeof(message), PSTR("Since midnight 1/1/1970 that's %l"), 
+    log(buffer);
+    snprintf_P(buffer, sizeof(buffer), PSTR("Since midnight 1/1/1970 that's %l"), 
       now.unixtime()
     );
-    log(message);
+    log(buffer);
     
-    snprintf_P(message, sizeof(message), PSTR("Temperature: %i C"), 
+    snprintf_P(buffer, sizeof(buffer), PSTR("Temperature: %i C"), 
       rtc.getTemperature()
     );
-    log(message);
+    log(buffer);
     FREE_MEM
 }
 
@@ -249,12 +230,11 @@ void printTime() {
  */
 void updateNow() {
   now = rtc.now();
-  char message[30];
   #ifdef VERBOSE_NOW_UPDATES
-  snprintf_P(message, sizeof(message), PSTR("Updated now to %u"), 
+  snprintf_P(buffer, sizeof(buffer), PSTR("Updated now to %u"), 
     now.unixtime()
   );
-  log(message);
+  log(buffer);
   #endif
 }
 
@@ -323,9 +303,8 @@ void loop() {
       if (buttonState == HIGH) {
         bitSet(ledState, LED_BUTTON); // turn the button back on
       } else { // buttonState == LOW
-        char message[25];
-        snprintf_P(message, sizeof(message), PSTR("PRESSED at %u"), now.unixtime());
-        log(message);
+        snprintf_P(buffer, sizeof(buffer), PSTR("PRESSED at %u"), now.unixtime());
+        log(buffer);
         bitClear(ledState, LED_BUTTON); // turn off the button led
       }
     }
