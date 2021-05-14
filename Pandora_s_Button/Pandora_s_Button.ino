@@ -176,6 +176,7 @@ void setup() {  pinMode(PIN_BUTTON, INPUT_PULLUP);
   if (!SD.begin(PIN_SD_CS)) {
     Serial.println(PSTR("initialization failed."));
     Serial.println(PSTR("Note: press reset or reopen this serial monitor after fixing your issue!"));
+    Serial.flush(); // make sure it's all transmitted before we abort
     abort();
   } else {
     Serial.println("SD card online.");
