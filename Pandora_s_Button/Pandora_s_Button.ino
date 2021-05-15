@@ -22,7 +22,7 @@
 
 
 
-#define VERSION       "0.2.7"
+#define VERSION       "0.2.8"
 #define PIN_BUTTON    3
 #define PIN_SD_CS     4
 #define PIN_TFT_CS    5
@@ -150,7 +150,6 @@ void log(const char* message) {
   Serial.print('[');
   Serial.print(millis(), DEC);
   Serial.print("] ");
-  Serial.println(message);
   if (sdAvailable) {
     logFile.print('[');
     logFile.print(millis(), DEC);
@@ -159,11 +158,12 @@ void log(const char* message) {
     logFile.flush(); // make sure the data is commited to the SD card
   } else { // if the file isn't open, pop up an error:
     char myBuff[50]; // use a new buffer so we don't overwrite the message
-    snprintf_P(myBuff, sizeof(myBuff), PSTR("ERROR: unable to write to log file on SD card."));
-    Serial.println(myBuff);
+    snprintf_P(myBuff, sizeof(myBuff), PSTR("ERROR: unable to write to log file on SD card. "));
+    Serial.print(myBuff);
     Tft.drawString(myBuff, LOG_TEXT_X, LOG_TEXT_Y + (LOG_TEXT_WIDTH * 2), LOG_TEXT_SIZE, RED, TEXT_ORIENTATION);
-    FREE_MEM
+    // Used to check memory low point when SD missing: FREE_MEM
   }
+  Serial.println(message);
 
   Tft.fillRectangle(LOG_TEXT_Y, LOG_TEXT_X, LOG_TEXT_WIDTH, LOG_TEXT_HEIGHT, LOG_TEXT_BG);
   Tft.drawString(message, LOG_TEXT_X, LOG_TEXT_Y, LOG_TEXT_SIZE, RED, TEXT_ORIENTATION);
@@ -250,7 +250,7 @@ void updateTftTime() {
   #define TIME_FG       WHITE
   #define TIME_BG       BLUE
 
-  LOG_BUFFER("Updateing time on the TFT")
+  LOG_BUFFER("Updating time on the TFT")
   nowToBuffer();
   Tft.fillRectangle(TIME_Y, TIME_X, TIME_WIDTH, TIME_HEIGHT, TIME_BG);
   Tft.drawString(buffer, TIME_X, TIME_Y, 1, TIME_FG, TEXT_ORIENTATION);
@@ -297,7 +297,7 @@ void updateTftPresses() {
   #define PRESSES_WIDTH   34
   #define PRESSES_HEIGHT  290
 
-  // LOG_BUFFER("Updateing time on the TFT")
+  LOG_BUFFER("Updating presses on the TFT")
   Tft.fillRectangle(PRESSES_Y + 2, PRESSES_X, PRESSES_WIDTH, PRESSES_HEIGHT, PRESSES_BG);
   snprintf_P(buffer, sizeof(buffer), PSTR("Presses: %03u"), myPresses);
   log(buffer);
@@ -329,7 +329,7 @@ void buttonPressed() {
     touchesFile.flush(); // make sure the data is commited to the SD card
     FREE_MEM_LOG
   } else { // if the file isn't open, pop up an error:
-    Serial.println(F("ERROR: unable to write to touches file on SD card."));
+    LOG_BUFFER("ERROR: unable to write to touches file on SD card.");
   }
   updateTftPresses();
 }
