@@ -344,7 +344,7 @@ void loop() {
 
   // Manage the LED(s) driven through the MBI5026 driver
   if (lastLedState != ledState) {
-    log("Updating LED driver");
+    LOG_BUFFER("Updating LED driver");
     // shift out highbyte
     shiftOut(PIN_MBI_SDA, PIN_MBI_SCK, MSBFIRST, (ledState >> 8));
     // shift out lowbyte
