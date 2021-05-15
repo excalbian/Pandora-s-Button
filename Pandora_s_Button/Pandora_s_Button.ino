@@ -9,10 +9,13 @@
 #define PERIOD_TOUCH_SCAN   100     // milliseconds before we re-scan for touches
 #define PERIOD_TIME_PRINT   300000  // milliseconds before we re-print the time ( = 5 minutes)
 #define PERIOD_NOW_UPDATE   500     // milliseconds before we update the 'now' value
+#define PERIOD_TFT_TIME     30000   // milliseconds to update the time on the TFT 
 // Use this to log each update to now: #define VERBOSE_NOW_UPDATES 1
 #define LOG_TEXT_SIZE     1
 #define LOG_TEXT_FG       RED
 #define LOG_TEXT_BG       BLACK
+#define TEXT_ORIENTATION  LANDSCAPE
+#define TFT_BG            BLUE
 
 
 #define VERSION       "0.2.4"
@@ -77,6 +80,7 @@ unsigned long lastDebounceTime = 0;  // the last time the output pin was toggled
 unsigned long millisLastTouchScan = 0;
 unsigned long millisLastTimePrint = 0;
 unsigned long millisLastNowUpdate = 0;
+unsigned long millisLastTftTimeUpdate = 0;
 
 /************************ Functions and methods ******************************/
 
@@ -155,7 +159,7 @@ void setup() {
   // Initalize the TFT screen
   // TFT_BL_ON;      // turn on the background light
   Tft.TFTinit();  // init TFT library
-  Tft.fillScreen(0, 240, 0, 320, BLUE);
+  Tft.fillScreen(0, 240, 0, 320, TFT_BG);
 
   Serial.print("Initializing SD card...");
 
@@ -167,7 +171,7 @@ void setup() {
   logFile = openFile("pandora.log");
 
   LOG_BUFFER("Pandora's Button v" VERSION)
-  Tft.drawString(buffer, 0, 220, 2, YELLOW, LANDSCAPE);
+  Tft.drawString(buffer, 0, 220, 2, YELLOW, TEXT_ORIENTATION);
   LOG_BUFFER(__DATE__ " " __TIME__);
 
   touchesFile = openFile("touches.csv");
@@ -198,10 +202,7 @@ void setup() {
   FREE_MEM
 }
 
-/**
- * Logs a message with the current value of `now` (global variable)
- */
-void printTime() {
+void nowToBuffer() {
     snprintf_P(buffer, sizeof(buffer), PSTR("%i/%i/%i (%s) %i:%i:%i"), 
       now.year(),
       now.month(),
@@ -211,6 +212,33 @@ void printTime() {
       now.minute(),
       now.second()
     );
+}
+
+void updateTftTime() {
+  #define TIME_X        0
+  #define TIME_Y        180
+  // Rotated for landscape
+  #define TIME_WIDTH    15     
+  #define TIME_HEIGHT   320
+  #define TIME_FG       WHITE
+  #define TIME_BG       BLUE
+
+  LOG_BUFFER("Updateing time on the TFT")
+  nowToBuffer();
+  Tft.fillRectangle(TIME_Y, TIME_X, TIME_WIDTH, TIME_HEIGHT, TIME_BG);
+  Tft.drawString(buffer, TIME_X, TIME_Y, 1, TIME_FG, TEXT_ORIENTATION);
+
+}
+
+/**
+ * Logs a message with the current value of `now` (global variable)
+ */
+void printTime() {
+    snprintf_P(buffer, sizeof(buffer), PSTR("Temperature: %i C"), 
+      rtc.getTemperature()
+    );
+    log(buffer);
+    nowToBuffer();
     log(buffer);
     snprintf_P(buffer, sizeof(buffer), PSTR("Since midnight 1/1/1970 that's %l"), 
       now.unixtime()
@@ -280,6 +308,10 @@ void loop() {
     updateNow();
   }
   
+  if((unsigned long)(millis() - millisLastTftTimeUpdate) > PERIOD_TFT_TIME) {
+    millisLastTftTimeUpdate = millis();
+    updateTftTime();
+  }
 
   // Check on our pushbutton -- it is only why we are here ;)
   int reading = digitalRead(PIN_BUTTON);
