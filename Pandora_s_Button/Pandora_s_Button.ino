@@ -22,7 +22,7 @@
 
 
 
-#define VERSION       "0.2.5"
+#define VERSION       "0.2.7"
 #define PIN_BUTTON    3
 #define PIN_SD_CS     4
 #define PIN_TFT_CS    5
@@ -78,6 +78,8 @@ int buttonState = LOW; // the current reading from the input pin
 unsigned int myPresses = 0; // how many times button pressed this go round
 short touchState = LOW; // to indicate if we are being touched
 unsigned int myTouches = 0; // how many touch screen taps we've counted as button presses
+boolean sdAvailable = false;
+
 DateTime now; // the time (to approximately the nearest second)
 char buffer[50]; // global string used to buffer from flash
 
@@ -110,12 +112,19 @@ int freeMemory() {
 }
 
 #define LOG_BUFFER(MSG) snprintf_P(buffer, sizeof(buffer), PSTR(MSG)); log(buffer);
-#define FREE_MEM Serial.println(F("Free RAM = ")); Serial.println(freeMemory(), DEC);  // print how much RAM is available.
+#define FREE_MEM Serial.print(F("Free RAM = ")); Serial.println(freeMemory(), DEC);  // print how much RAM is available.
 #define FREE_MEM_LOG snprintf_P(buffer, sizeof(buffer), PSTR("Free RAM=%u"), freeMemory()); log(buffer);
 
 
 File openFile(const char* path) {
   File myFile;
+  if (!sdAvailable) {
+    snprintf_P(buffer, sizeof(buffer), PSTR("ERROR: SD not available. Not opening %s."), 
+      path
+    );
+    log(buffer);
+    return;
+  }
   snprintf_P(buffer, sizeof(buffer), PSTR("Looking for %s ..."), 
     path
   );
@@ -132,25 +141,30 @@ File openFile(const char* path) {
 }
 
 void log(const char* message) {
+  #define TEXT_ORIENTATION  LANDSCAPE
+  #define LOG_TEXT_X        0
+  #define LOG_TEXT_Y        0
+  #define LOG_TEXT_WIDTH    12
+  #define LOG_TEXT_HEIGHT   320
+
   Serial.print('[');
   Serial.print(millis(), DEC);
   Serial.print("] ");
   Serial.println(message);
-  if (logFile) {
+  if (sdAvailable) {
     logFile.print('[');
     logFile.print(millis(), DEC);
     logFile.print("] ");
     logFile.println(message);
     logFile.flush(); // make sure the data is commited to the SD card
   } else { // if the file isn't open, pop up an error:
-    Serial.println(PSTR("ERROR: unable to write to log file on SD card."));
+    char myBuff[50]; // use a new buffer so we don't overwrite the message
+    snprintf_P(myBuff, sizeof(myBuff), PSTR("ERROR: unable to write to log file on SD card."));
+    Serial.println(myBuff);
+    Tft.drawString(myBuff, LOG_TEXT_X, LOG_TEXT_Y + (LOG_TEXT_WIDTH * 2), LOG_TEXT_SIZE, RED, TEXT_ORIENTATION);
+    FREE_MEM
   }
 
-  #define TEXT_ORIENTATION  LANDSCAPE
-  #define LOG_TEXT_X        0
-  #define LOG_TEXT_Y        0
-  #define LOG_TEXT_WIDTH    12
-  #define LOG_TEXT_HEIGHT   320
   Tft.fillRectangle(LOG_TEXT_Y, LOG_TEXT_X, LOG_TEXT_WIDTH, LOG_TEXT_HEIGHT, LOG_TEXT_BG);
   Tft.drawString(message, LOG_TEXT_X, LOG_TEXT_Y, LOG_TEXT_SIZE, RED, TEXT_ORIENTATION);
 }
@@ -172,11 +186,14 @@ void setup() {
   Serial.print("Initializing SD card...");
 
   if (!SD.begin(PIN_SD_CS)) {
-    Serial.println(PSTR("initialization failed."));
+    Serial.println(F("initialization failed."));
+    SD.end();
+    SPI.setClockDivider(SPI_CLOCK_DIV4);
   } else {
-    Serial.println("SD card online.");
+    Serial.println(F("SD card online."));
+    sdAvailable = true;
+    logFile = openFile("pandora.log");
   }
-  logFile = openFile("pandora.log");
 
   LOG_BUFFER("Pandora's Button v" VERSION)
   Tft.drawString(buffer, 0, 220, 2, YELLOW, TEXT_ORIENTATION);
@@ -294,7 +311,7 @@ void buttonPressed() {
   snprintf_P(buffer, sizeof(buffer), PSTR("PRESSED at %u"), now.unixtime());
   log(buffer);
   myPresses++;
-  if (touchesFile) {
+  if (sdAvailable && touchesFile) {
     // version, milliseconds, unixtime, year, month, day, hour, minute, second, 1 (for pressed count), myPresses, myTouches
     snprintf_P(longBuffer, sizeof(longBuffer), PSTR(VERSION ",%u,%u,%u,%u,%u,%u,%u,%u,1,%u,%u"),
       millis(),
@@ -310,6 +327,7 @@ void buttonPressed() {
     );
     touchesFile.println(longBuffer);
     touchesFile.flush(); // make sure the data is commited to the SD card
+    FREE_MEM_LOG
   } else { // if the file isn't open, pop up an error:
     Serial.println(F("ERROR: unable to write to touches file on SD card."));
   }

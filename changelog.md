@@ -1,12 +1,17 @@
 # Change log
 
-## v0.2.6
- - Log button presses to CSV
+## v0.2.7
+ - Better handling when SD card not present
+ - Fixed SPI speed when SD initialization fails
 
 ```
 Sketch uses 28750 bytes (89%) of program storage space. Maximum is 32256 bytes.
 Global variables use 1427 bytes (69%) of dynamic memory, leaving 621 bytes for local variables. Maximum is 2048 bytes.
 ```
+
+## v0.2.6
+ - Log button presses to CSV
+
 ## v0.2.5
  - Show time on the TFT (updated every 30 seconds)
  - Log free heap to serial and the file (and TFT log area)
