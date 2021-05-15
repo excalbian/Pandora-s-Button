@@ -69,7 +69,7 @@ int lastLedState = 0; // our LEDs (through MBI5026 driver)
 int ledState = 0; // our desired state for the LEDs
 int buttonState = LOW;             // the current reading from the input pin
 DateTime now; // the time (to approximately the nearest second)
-char buffer[30];
+char buffer[50]; // global string used to buffer from flash
 
 // the following variables are unsigned longs because the time, measured in
 // milliseconds, will quickly become a bigger number than can be stored in an int.
