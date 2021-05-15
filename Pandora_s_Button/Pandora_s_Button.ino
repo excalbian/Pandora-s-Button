@@ -18,7 +18,7 @@
 #define TFT_BG            BLUE
 
 
-#define VERSION       "0.2.4"
+#define VERSION       "0.2.5"
 #define PIN_BUTTON    3
 #define PIN_SD_CS     4
 #define PIN_TFT_CS    5
@@ -104,6 +104,7 @@ int freeMemory() {
 
 #define LOG_BUFFER(MSG) snprintf_P(buffer, sizeof(buffer), PSTR(MSG)); log(buffer);
 #define FREE_MEM Serial.println(F("Free RAM = ")); Serial.println(freeMemory(), DEC);  // print how much RAM is available.
+#define FREE_MEM_LOG snprintf_P(buffer, sizeof(buffer), PSTR("Free RAM=%u"), freeMemory()); log(buffer);
 
 
 File openFile(const char* path) {
@@ -199,7 +200,7 @@ void setup() {
   }
 
 
-  FREE_MEM
+  FREE_MEM_LOG
 }
 
 void nowToBuffer() {
@@ -228,6 +229,7 @@ void updateTftTime() {
   Tft.fillRectangle(TIME_Y, TIME_X, TIME_WIDTH, TIME_HEIGHT, TIME_BG);
   Tft.drawString(buffer, TIME_X, TIME_Y, 1, TIME_FG, TEXT_ORIENTATION);
 
+  FREE_MEM_LOG
 }
 
 /**
@@ -245,11 +247,7 @@ void printTime() {
     );
     log(buffer);
     
-    snprintf_P(buffer, sizeof(buffer), PSTR("Temperature: %i C"), 
-      rtc.getTemperature()
-    );
-    log(buffer);
-    FREE_MEM
+    FREE_MEM_LOG
 }
 
 /**
@@ -300,7 +298,7 @@ void loop() {
   if((unsigned long)(millis() - millisLastTimePrint) > PERIOD_TIME_PRINT) {
     millisLastTimePrint = millis();
     printTime();
-    FREE_MEM
+    FREE_MEM_LOG
   }
 
   if((unsigned long)(millis() - millisLastNowUpdate) > PERIOD_NOW_UPDATE) {
