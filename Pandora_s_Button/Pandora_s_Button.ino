@@ -11,11 +11,15 @@
 #define PERIOD_NOW_UPDATE   500     // milliseconds before we update the 'now' value
 #define PERIOD_TFT_TIME     30000   // milliseconds to update the time on the TFT 
 // Use this to log each update to now: #define VERBOSE_NOW_UPDATES 1
-#define LOG_TEXT_SIZE     1
-#define LOG_TEXT_FG       RED
-#define LOG_TEXT_BG       BLACK
-#define TEXT_ORIENTATION  LANDSCAPE
-#define TFT_BG            BLUE
+#define TOUCHES_AS_PRESSES  1
+#define LOG_TEXT_SIZE       1
+#define LOG_TEXT_FG         RED
+#define LOG_TEXT_BG         BLACK
+#define TEXT_ORIENTATION    LANDSCAPE
+#define TFT_BG              BLUE
+#define PRESSES_FG          YELLOW
+#define PRESSES_BG          RED
+
 
 
 #define VERSION       "0.2.5"
@@ -67,10 +71,13 @@ char daysOfTheWeek[7][12] = {"Sunday", "Monday", "Tuesday", "Wednesday", "Thursd
 // "Global" variables
 File logFile;
 File touchesFile;
-int lastButtonState = LOW;   // the previous reading from the input pin
+int lastButtonState = LOW; // the previous reading from the input pin
 int lastLedState = 0; // our LEDs (through MBI5026 driver)
 int ledState = 0; // our desired state for the LEDs
-int buttonState = LOW;             // the current reading from the input pin
+int buttonState = LOW; // the current reading from the input pin
+unsigned int myPresses = 0; // how many times button pressed this go round
+short touchState = LOW; // to indicate if we are being touched
+unsigned int myTouches = 0; // how many touch screen taps we've counted as button presses
 DateTime now; // the time (to approximately the nearest second)
 char buffer[50]; // global string used to buffer from flash
 
@@ -142,7 +149,7 @@ void log(const char* message) {
   #define TEXT_ORIENTATION  LANDSCAPE
   #define LOG_TEXT_X        0
   #define LOG_TEXT_Y        0
-  #define LOG_TEXT_WIDTH    15
+  #define LOG_TEXT_WIDTH    12
   #define LOG_TEXT_HEIGHT   320
   Tft.fillRectangle(LOG_TEXT_Y, LOG_TEXT_X, LOG_TEXT_WIDTH, LOG_TEXT_HEIGHT, LOG_TEXT_BG);
   Tft.drawString(message, LOG_TEXT_X, LOG_TEXT_Y, LOG_TEXT_SIZE, RED, TEXT_ORIENTATION);
@@ -174,6 +181,8 @@ void setup() {
   LOG_BUFFER("Pandora's Button v" VERSION)
   Tft.drawString(buffer, 0, 220, 2, YELLOW, TEXT_ORIENTATION);
   LOG_BUFFER(__DATE__ " " __TIME__);
+  updateTftTime();
+  updateTftPresses();
 
   touchesFile = openFile("touches.csv");
 
@@ -264,34 +273,64 @@ void updateNow() {
   #endif
 }
 
+void updateTftPresses() {
+  #define PRESSES_X       15
+  #define PRESSES_Y       120
+  // Rotated for landscape
+  #define PRESSES_WIDTH   34
+  #define PRESSES_HEIGHT  290
+
+  // LOG_BUFFER("Updateing time on the TFT")
+  Tft.fillRectangle(PRESSES_Y + 2, PRESSES_X, PRESSES_WIDTH, PRESSES_HEIGHT, PRESSES_BG);
+  snprintf_P(buffer, sizeof(buffer), PSTR("Presses: %03u"), myPresses);
+  log(buffer);
+  Tft.drawString(buffer, PRESSES_X, PRESSES_Y, 4, PRESSES_FG, TEXT_ORIENTATION);
+
+  FREE_MEM_LOG
+}
+
+void buttonPressed() {
+  snprintf_P(buffer, sizeof(buffer), PSTR("PRESSED at %u"), now.unixtime());
+  log(buffer);
+  myPresses++;
+  updateTftPresses();
+}
+
 void loop() {
   if((unsigned long)(millis() - millisLastTouchScan) > PERIOD_TOUCH_SCAN) {
     millisLastTouchScan = millis();
     Point p = ts.getPoint();
 
-    if (p.z > __PRESSURE) {
-      char message[45];
-      snprintf_P(message, sizeof(message), PSTR("Raw X = %i\tRaw Y = %i\tPressure = %i."), 
-        p.x,
-        p.y,
-        p.z
-      );
-      log(message);
-    }
-
     // we have some minimum pressure we consider 'valid'
     // pressure of 0 means no pressing!
     if (p.z > __PRESSURE) {
-      p.x = map(p.x, TS_MINX, TS_MAXX, 0, 240);
-      p.y = map(p.y, TS_MINY, TS_MAXY, 0, 320);
-
-      char message[45];
-      snprintf_P(message, sizeof(message), PSTR("X = %i\tY = %i\tPressure = %i."), 
+      snprintf_P(buffer, sizeof(buffer), PSTR("Raw X = %04i  Raw Y = %04i  Pressure = %03i."), 
         p.x,
         p.y,
         p.z
       );
-      log(message);
+      log(buffer);
+      // scale the touch (analog) to size of the display
+      p.x = map(p.x, TS_MINX, TS_MAXX, 0, 240);
+      p.y = map(p.y, TS_MINY, TS_MAXY, 0, 320);
+      snprintf_P(buffer, sizeof(buffer), PSTR("X = %03i  Y = %03i  Pressure = %03i."), 
+        p.x,
+        p.y,
+        p.z
+      );
+      log(buffer);
+      #ifdef TOUCHES_AS_PRESSES
+      if (touchState == LOW) { // we weren't touching, but now we are
+        touchState = HIGH;
+        myTouches ++;
+        buttonPressed();
+        snprintf_P(buffer, sizeof(buffer), PSTR("Counted touchscreen touch %u as button press."), myTouches);
+        log(buffer);
+      }
+      #endif
+
+    } else {
+      touchState = LOW; // we aren't touching any more ;)
     }
   } // last touch scan
 
@@ -333,8 +372,7 @@ void loop() {
       if (buttonState == HIGH) {
         bitSet(ledState, LED_BUTTON); // turn the button back on
       } else { // buttonState == LOW
-        snprintf_P(buffer, sizeof(buffer), PSTR("PRESSED at %u"), now.unixtime());
-        log(buffer);
+        buttonPressed();
         bitClear(ledState, LED_BUTTON); // turn off the button led
       }
     }
