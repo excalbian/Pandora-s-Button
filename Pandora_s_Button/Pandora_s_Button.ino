@@ -290,9 +290,29 @@ void updateTftPresses() {
 }
 
 void buttonPressed() {
+  char longBuffer[100];
   snprintf_P(buffer, sizeof(buffer), PSTR("PRESSED at %u"), now.unixtime());
   log(buffer);
   myPresses++;
+  if (touchesFile) {
+    // version, milliseconds, unixtime, year, month, day, hour, minute, second, 1 (for pressed count), myPresses, myTouches
+    snprintf_P(longBuffer, sizeof(longBuffer), PSTR(VERSION ",%u,%u,%u,%u,%u,%u,%u,%u,1,%u,%u"),
+      millis(),
+      now.unixtime(),
+      now.year(),
+      now.month(),
+      now.day(),
+      now.hour(),
+      now.minute(),
+      now.second(),
+      myPresses,
+      myTouches
+    );
+    touchesFile.println(longBuffer);
+    touchesFile.flush(); // make sure the data is commited to the SD card
+  } else { // if the file isn't open, pop up an error:
+    Serial.println(F("ERROR: unable to write to touches file on SD card."));
+  }
   updateTftPresses();
 }
 
